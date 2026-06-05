@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: pcbuilder
+          POSTGRES_USER: dev
+          POSTGRES_PASSWORD: devpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Run schema
+        run: |
+          PGPASSWORD=devpass psql -h localhost -U dev -d pcbuilder -f backend/schema.sql
+
+      - name: Run seed
+        run: |
+          PGPASSWORD=devpass psql -h localhost -U dev -d pcbuilder -f backend/seed.sql
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://dev:devpass@localhost:5432/pcbuilder
+          REDIS_URL: redis://localhost:6379
+        run: |
+          cd backend
+          pytest test_csp.py -v
