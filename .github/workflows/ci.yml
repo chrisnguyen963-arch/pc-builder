@@ -43,10 +43,10 @@ jobs:
           cd backend
           pip install -r requirements.txt
 
-      - name: Run schema
+      - name: Install dependencies
         run: |
-          PGPASSWORD=devpass psql -h localhost -U dev -d pcbuilder -f backend/schema.sql
-
+          cd backend
+          pip install fastapi uvicorn sqlalchemy psycopg2-binary redis alembic python-dotenv httpx pytest prefect beautifulsoup4
       - name: Run seed
         run: |
           PGPASSWORD=devpass psql -h localhost -U dev -d pcbuilder -f backend/seed.sql

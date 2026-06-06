@@ -1,4 +1,16 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Stub out database dependency so tests don't need Postgres or dotenv
+import unittest.mock as mock
+sys.modules['database'] = mock.MagicMock()
+sys.modules['models'] = mock.MagicMock()
+
 import pytest
+from routers.compatibility import (
+    cpu_mobo, mobo_ram, gpu_psu, mobo_case, ac3
+)
 from routers.compatibility import (
     cpu_mobo, mobo_ram, gpu_psu, mobo_case, ac3
 )
