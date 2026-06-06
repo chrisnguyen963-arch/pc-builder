@@ -126,15 +126,19 @@ export default function App() {
 
   async function loadParts() {
     if (loaded) return
-    const cats = ["cpu", "motherboard", "ram", "gpu", "psu", "case"]
-    const results = await Promise.all(
-      cats.map(c => axios.get(`${API}/parts?category=${c}`))
-    )
-    const options: Record<string, Part[]> = {}
-    cats.forEach((c, i) => { options[c] = results[i].data })
-    setPartOptions(options)
-    setAllParts(options)
-    setLoaded(true)
+    try {
+      const cats = ["cpu", "motherboard", "ram", "gpu", "psu", "case"]
+      const results = await Promise.all(
+        cats.map(c => axios.get(`${API}/parts?category=${c}`))
+      )
+      const options: Record<string, Part[]> = {}
+      cats.forEach((c, i) => { options[c] = results[i].data })
+      setPartOptions(options)
+      setAllParts(options)
+      setLoaded(true)
+    } catch (e: any) {
+      setError(`Failed to load parts: ${e.message} — URL: ${API}`)
+    }
   }
 
   async function validateBuild(newSlots: Record<string, string>) {
