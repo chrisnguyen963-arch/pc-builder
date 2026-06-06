@@ -1,7 +1,7 @@
 import { useState } from "react"
 import axios from "axios"
 
-const API = "https://pc-builder-backend-production-0634.up.railway.app"
+const API = import.meta.env.VITE_API_URL ?? "https://pc-builder-backend-production-0634.up.railway.app"
 
 const SLOT_ICONS: Record<string, string> = {
   cpu: "🧠", motherboard: "🖥️", ram: "💾",
