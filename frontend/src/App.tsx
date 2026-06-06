@@ -160,13 +160,21 @@ export default function App() {
   }
 
   function selectPart(slot: string, id: string) {
-    // Toggle off if already selected
-    const newSlots = slots[slot] === id
-      ? (() => { const s = { ...slots }; delete s[slot]; return s })()
-      : { ...slots, [slot]: id }
-    setSlots(newSlots)
+  const isDeselecting = slots[slot] === id
+  const newSlots = isDeselecting
+    ? (() => { const s = { ...slots }; delete s[slot]; return s })()
+    : { ...slots, [slot]: id }
+  setSlots(newSlots)
+
+  if (Object.keys(newSlots).length === 0) {
+    setPartOptions(allParts)
+  } else if (isDeselecting) {
+    setPartOptions(prev => ({ ...prev, [slot]: allParts[slot] }))
+    validateBuild(newSlots)
+  } else {
     validateBuild(newSlots)
   }
+}
 
   function reset() {
     setSlots({})
