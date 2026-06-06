@@ -1,19 +1,18 @@
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Stub out database dependency so tests don't need Postgres or dotenv
 import unittest.mock as mock
+
+# Mock out database/dotenv before any imports touch them
 sys.modules['database'] = mock.MagicMock()
 sys.modules['models'] = mock.MagicMock()
+sys.modules['redis'] = mock.MagicMock()
+
+# Now we can safely import just the pure CSP functions
+from routers.compatibility import (
+    cpu_mobo, mobo_ram, gpu_psu, mobo_case, ac3
+)
 
 import pytest
-from routers.compatibility import (
-    cpu_mobo, mobo_ram, gpu_psu, mobo_case, ac3
-)
-from routers.compatibility import (
-    cpu_mobo, mobo_ram, gpu_psu, mobo_case, ac3
-)
 
 # ── Fixture helpers ────────────────────────────────────────────────────────────
 
@@ -35,90 +34,87 @@ def make_psu(watts):
 def make_case(form):
     return {"id": "case-1", "specs": {"form": form}, "category": "case"}
 
-# ── Constraint unit tests ──────────────────────────────────────────────────────
+# ── CPU + Motherboard ──────────────────────────────────────────────────────────
 
-class TestCpuMobo:
-    def test_matching_socket_compatible(self):
-        assert cpu_mobo(make_cpu("LGA1700"), make_mobo("LGA1700", "DDR4")) is True
+def test_cpu_mobo_matching_socket():
+    assert cpu_mobo(make_cpu("LGA1700"), make_mobo("LGA1700", "DDR4")) is True
 
-    def test_mismatched_socket_incompatible(self):
-        assert cpu_mobo(make_cpu("LGA1700"), make_mobo("AM5", "DDR5")) is False
+def test_cpu_mobo_mismatched_socket():
+    assert cpu_mobo(make_cpu("LGA1700"), make_mobo("AM5", "DDR5")) is False
 
-    def test_am5_to_am5_compatible(self):
-        assert cpu_mobo(make_cpu("AM5"), make_mobo("AM5", "DDR5")) is True
+def test_cpu_mobo_am5_compatible():
+    assert cpu_mobo(make_cpu("AM5"), make_mobo("AM5", "DDR5")) is True
 
+# ── Motherboard + RAM ──────────────────────────────────────────────────────────
 
-class TestMoboRam:
-    def test_ddr4_mobo_ddr4_ram_compatible(self):
-        assert mobo_ram(make_mobo("LGA1700", "DDR4"), make_ram("DDR4")) is True
+def test_mobo_ram_ddr4_match():
+    assert mobo_ram(make_mobo("LGA1700", "DDR4"), make_ram("DDR4")) is True
 
-    def test_ddr4_mobo_ddr5_ram_incompatible(self):
-        assert mobo_ram(make_mobo("LGA1700", "DDR4"), make_ram("DDR5")) is False
+def test_mobo_ram_ddr4_ddr5_mismatch():
+    assert mobo_ram(make_mobo("LGA1700", "DDR4"), make_ram("DDR5")) is False
 
-    def test_ddr5_mobo_ddr5_ram_compatible(self):
-        assert mobo_ram(make_mobo("AM5", "DDR5"), make_ram("DDR5")) is True
+def test_mobo_ram_ddr5_match():
+    assert mobo_ram(make_mobo("AM5", "DDR5"), make_ram("DDR5")) is True
 
+# ── GPU + PSU ──────────────────────────────────────────────────────────────────
 
-class TestGpuPsu:
-    def test_sufficient_psu_compatible(self):
-        assert gpu_psu(make_gpu(200), make_psu(750)) is True
+def test_gpu_psu_sufficient():
+    assert gpu_psu(make_gpu(200), make_psu(750)) is True
 
-    def test_insufficient_psu_incompatible(self):
-        assert gpu_psu(make_gpu(355), make_psu(600)) is False
+def test_gpu_psu_insufficient():
+    assert gpu_psu(make_gpu(355), make_psu(600)) is False
 
-    def test_exactly_at_limit_fails(self):
-        assert gpu_psu(make_gpu(200), make_psu(437)) is False
+def test_gpu_psu_at_limit_fails():
+    assert gpu_psu(make_gpu(200), make_psu(437)) is False
 
+# ── Motherboard + Case ─────────────────────────────────────────────────────────
 
-class TestMoboCase:
-    def test_atx_mobo_atx_case_compatible(self):
-        assert mobo_case(make_mobo("LGA1700", "DDR4", "ATX"), make_case("ATX")) is True
+def test_mobo_case_atx_atx():
+    assert mobo_case(make_mobo("LGA1700", "DDR4", "ATX"), make_case("ATX")) is True
 
-    def test_matx_mobo_atx_case_compatible(self):
-        assert mobo_case(make_mobo("LGA1700", "DDR4", "mATX"), make_case("ATX")) is True
+def test_mobo_case_matx_fits_atx_case():
+    assert mobo_case(make_mobo("LGA1700", "DDR4", "mATX"), make_case("ATX")) is True
 
-    def test_atx_mobo_matx_case_incompatible(self):
-        assert mobo_case(make_mobo("LGA1700", "DDR4", "ATX"), make_case("mATX")) is False
+def test_mobo_case_atx_matx_fails():
+    assert mobo_case(make_mobo("LGA1700", "DDR4", "ATX"), make_case("mATX")) is False
 
-    def test_matx_mobo_matx_case_compatible(self):
-        assert mobo_case(make_mobo("LGA1700", "DDR4", "mATX"), make_case("mATX")) is True
+def test_mobo_case_matx_matx():
+    assert mobo_case(make_mobo("LGA1700", "DDR4", "mATX"), make_case("mATX")) is True
 
+# ── AC-3 integration ───────────────────────────────────────────────────────────
 
-# ── AC-3 integration tests ─────────────────────────────────────────────────────
+def test_ac3_consistent_build():
+    domains = {
+        "cpu":         [make_cpu("LGA1700")],
+        "motherboard": [make_mobo("LGA1700", "DDR4", "ATX")],
+        "ram":         [make_ram("DDR4")],
+        "gpu":         [make_gpu(200)],
+        "psu":         [make_psu(750)],
+        "case":        [make_case("ATX")],
+    }
+    assert ac3(domains) is True
 
-class TestAC3:
-    def test_consistent_domains_returns_true(self):
-        domains = {
-            "cpu":         [make_cpu("LGA1700")],
-            "motherboard": [make_mobo("LGA1700", "DDR4", "ATX")],
-            "ram":         [make_ram("DDR4")],
-            "gpu":         [make_gpu(200)],
-            "psu":         [make_psu(750)],
-            "case":        [make_case("ATX")],
-        }
-        assert ac3(domains) is True
+def test_ac3_socket_mismatch_fails():
+    domains = {
+        "cpu":         [make_cpu("LGA1700")],
+        "motherboard": [make_mobo("AM5", "DDR5", "ATX")],
+        "ram":         [make_ram("DDR5")],
+        "gpu":         [make_gpu(200)],
+        "psu":         [make_psu(750)],
+        "case":        [make_case("ATX")],
+    }
+    result = ac3(domains)
+    assert result is False or len(domains["cpu"]) == 0 or len(domains["motherboard"]) == 0
 
-    def test_socket_mismatch_wipes_domain(self):
-        domains = {
-            "cpu":         [make_cpu("LGA1700")],
-            "motherboard": [make_mobo("AM5", "DDR5", "ATX")],
-            "ram":         [make_ram("DDR5")],
-            "gpu":         [make_gpu(200)],
-            "psu":         [make_psu(750)],
-            "case":        [make_case("ATX")],
-        }
-        result = ac3(domains)
-        assert result is False or len(domains["cpu"]) == 0 or len(domains["motherboard"]) == 0
-
-    def test_pruning_reduces_domain(self):
-        domains = {
-            "cpu":         [make_cpu("LGA1700")],
-            "motherboard": [make_mobo("LGA1700", "DDR4", "ATX")],
-            "ram":         [make_ram("DDR4"), make_ram("DDR5")],
-            "gpu":         [make_gpu(150)],
-            "psu":         [make_psu(750)],
-            "case":        [make_case("ATX")],
-        }
-        ac3(domains)
-        assert all(r["specs"]["mem_gen"] == "DDR4" for r in domains["ram"])
-        assert len(domains["ram"]) == 1
+def test_ac3_prunes_incompatible_ram():
+    domains = {
+        "cpu":         [make_cpu("LGA1700")],
+        "motherboard": [make_mobo("LGA1700", "DDR4", "ATX")],
+        "ram":         [make_ram("DDR4"), make_ram("DDR5")],
+        "gpu":         [make_gpu(150)],
+        "psu":         [make_psu(750)],
+        "case":        [make_case("ATX")],
+    }
+    ac3(domains)
+    assert all(r["specs"]["mem_gen"] == "DDR4" for r in domains["ram"])
+    assert len(domains["ram"]) == 1
